@@ -1,4 +1,12 @@
 import streamlit as st
+
+# Set page config at the very beginning
+st.set_page_config(
+    page_title="Event Feedback Analyzer",
+    page_icon="📊",
+    layout="wide"
+)
+
 import pandas as pd
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -195,12 +203,6 @@ class FeedbackAnalyzer:
         return "I'm not sure about that specific aspect of the feedback. Could you rephrase your question or ask about a specific question from the survey?"
 
 def main():
-    st.set_page_config(
-        page_title="Event Feedback Analyzer",
-        page_icon="📊",
-        layout="wide"
-    )
-
     st.title("Event Feedback Analyzer 📊")
     st.write("Upload your Google Forms feedback CSV file and get instant analysis and insights!")
 
