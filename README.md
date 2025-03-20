@@ -14,7 +14,7 @@ A Streamlit web application that analyzes feedback from Google Forms and provide
 
 ## 🚀 Live Demo
 
-Access the live application at: https://YOUR_APP_NAME.streamlit.app
+Access the live application at: [https://feedback_analyzer.streamlit.app](https://danish7x7-feedback-analyzer-streamlit-app-uhgxe8.streamlit.app/)
 
 ## 📋 Usage
 
@@ -39,7 +39,7 @@ Example questions you can ask:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/event-feedback-analyzer.git
+git clone https://github.com/danish7x7/feedback-analyzer.git
 cd event-feedback-analyzer
 ```
 
