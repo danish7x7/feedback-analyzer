@@ -8,36 +8,46 @@ st.set_page_config(
 )
 
 import pandas as pd
-import nltk
-from nltk.tokenize import word_tokenize, sent_tokenize
-from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import TfidfVectorizer
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from collections import defaultdict
 
-# Download required NLTK data
-@st.cache_resource
-def download_nltk_data():
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('averaged_perceptron_tagger')
-    
-    # Ensure NLTK resources are properly loaded
-    try:
-        # Test if the tokenizer works properly
-        test_text = "This is a test sentence."
-        tokens = sent_tokenize(test_text)
-        st.write("NLTK resources loaded successfully!")
-    except Exception as e:
-        st.error(f"Error loading NLTK resources: {str(e)}")
-        # Try alternative approach if the standard method fails
-        try:
-            from nltk.tokenize import PunktSentenceTokenizer
-            tokenizer = PunktSentenceTokenizer()
-            st.write("Using alternative tokenizer.")
-        except Exception as e2:
-            st.error(f"Could not initialize alternative tokenizer: {str(e2)}")
+# Custom tokenization functions that don't rely on NLTK
+def custom_sentence_tokenize(text):
+    """Split text into sentences without NLTK"""
+    # Basic sentence splitting on period, question mark, exclamation mark
+    # followed by a space and uppercase letter
+    sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+    # Clean up sentences
+    return [s.strip() for s in sentences if s.strip()]
 
-download_nltk_data()
+def custom_word_tokenize(text):
+    """Split text into words without NLTK"""
+    # Remove punctuation and convert to lowercase
+    text = re.sub(r'[^\w\s]', ' ', text.lower())
+    # Split on whitespace
+    return [word for word in text.split() if word]
+
+# Common English stopwords (abbreviated list)
+STOPWORDS = set([
+    'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 
+    'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 
+    'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 
+    'theirs', 'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', 
+    'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 
+    'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an', 
+    'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 
+    'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 
+    'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 
+    'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 
+    'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 
+    'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 
+    'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 's', 't', 'can', 
+    'will', 'just', 'don', 'should', 'now', 'd', 'll', 'm', 'o', 're', 've', 
+    'y', 'ain', 'aren', 'couldn', 'didn', 'doesn', 'hadn', 'hasn', 'haven', 
+    'isn', 'ma', 'mightn', 'mustn', 'needn', 'shan', 'shouldn', 'wasn', 'weren', 
+    'won', 'wouldn'
+])
 
 class FeedbackAnalyzer:
     def __init__(self, df):
@@ -86,12 +96,8 @@ class FeedbackAnalyzer:
         # Combine all responses
         combined_text = ' '.join(responses)
         
-        # Tokenize sentences safely
-        try:
-            sentences = sent_tokenize(combined_text)
-        except Exception:
-            # Fallback to a simple split on periods if NLTK tokenization fails
-            sentences = [s.strip() + '.' for s in combined_text.split('.') if s.strip()]
+        # Tokenize sentences safely using our custom function
+        sentences = custom_sentence_tokenize(combined_text)
         
         if not sentences:
             return {
@@ -101,7 +107,6 @@ class FeedbackAnalyzer:
             }
         
         # Calculate sentence importance using TF-IDF
-        # Use a try-except block in case TF-IDF vectorization fails
         try:
             vectorizer = TfidfVectorizer(stop_words='english')
             tfidf_matrix = vectorizer.fit_transform(sentences)
@@ -110,14 +115,17 @@ class FeedbackAnalyzer:
             importance_scores = tfidf_matrix.sum(axis=1).A1
             
             # Get top sentences (most representative)
-            top_sentence_indices = importance_scores.argsort()[-3:][::-1]
-            summary_sentences = [sentences[i] for i in top_sentence_indices]
+            if len(sentences) >= 3:
+                top_sentence_indices = importance_scores.argsort()[-3:][::-1]
+                summary_sentences = [sentences[i] for i in top_sentence_indices]
+            else:
+                summary_sentences = sentences
             
             # Create a summary paragraph
             summary = " ".join(summary_sentences)
         except Exception:
             # Fallback to a simple summary if TF-IDF fails
-            summary = ". ".join(sentences[:3])
+            summary = ". ".join(sentences[:min(3, len(sentences))])
         
         # Add some basic statistics
         common_themes = self.extract_common_themes(responses)
@@ -153,34 +161,27 @@ class FeedbackAnalyzer:
         """
         Extract common themes from text responses
         """
-        # Tokenize and clean text
         try:
-            stop_words = set(stopwords.words('english'))
-            # Use a safer method for tokenization
+            # Tokenize using our custom function
             all_words = []
             for response in responses:
-                try:
-                    words = word_tokenize(response.lower())
-                    all_words.extend(words)
-                except Exception:
-                    # Fallback to simple splitting
-                    all_words.extend(response.lower().split())
+                words = custom_word_tokenize(response)
+                all_words.extend(words)
             
-            # Filter words
-            words = [word for word in all_words if word not in stop_words and len(word) > 3 and word.isalpha()]
+            # Filter stopwords and short words
+            words = [word for word in all_words if word not in STOPWORDS and len(word) > 3]
+            
+            # Count word frequencies
+            word_freq = defaultdict(int)
+            for word in words:
+                word_freq[word] += 1
+            
+            # Get top 5 most common words
+            common_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]
+            return [{'word': word, 'count': count} for word, count in common_words]
         except Exception:
-            # Very simple fallback
-            words = ' '.join(responses).lower().split()
-            words = [word for word in words if len(word) > 3]
-        
-        # Count word frequencies
-        word_freq = defaultdict(int)
-        for word in words:
-            word_freq[word] += 1
-        
-        # Get top 5 most common words
-        common_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:5]
-        return [{'word': word, 'count': count} for word, count in common_words]
+            # Return empty list if anything fails
+            return []
 
     def create_feedback_context(self):
         """
