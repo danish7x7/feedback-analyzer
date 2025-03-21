@@ -7,6 +7,101 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    /* Main title styling */
+    .main-title {
+        color: #1E88E5;
+        font-size: 3rem !important;
+        font-weight: 700;
+        margin-bottom: 2rem;
+        text-align: center;
+        padding: 1.5rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    
+    /* Subtitle styling */
+    .subtitle {
+        color: #424242;
+        font-size: 1.2rem !important;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    /* Card-like styling for sections */
+    .css-1r6slb0 {  /* Expander class */
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+    }
+    
+    /* Theme tag styling */
+    .theme-tag {
+        display: inline-block;
+        background: linear-gradient(135deg, #1E88E5 0%, #1976D2 100%);
+        color: white;
+        padding: 4px 12px;
+        margin: 4px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Metrics styling */
+    .css-1xarl3l {  /* Metric value class */
+        font-size: 1.8rem !important;
+        color: #1E88E5;
+    }
+    
+    /* Chat input styling */
+    .stTextInput input {
+        border-radius: 20px;
+        padding: 0.5rem 1rem;
+        border: 2px solid #E3F2FD;
+    }
+    
+    .stTextInput input:focus {
+        border-color: #1E88E5;
+        box-shadow: 0 0 0 2px rgba(30,136,229,0.2);
+    }
+    
+    /* Button styling */
+    .stButton button {
+        border-radius: 20px;
+        padding: 0.5rem 2rem;
+        background: linear-gradient(135deg, #1E88E5 0%, #1976D2 100%);
+        color: white;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .stButton button:hover {
+        background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
+    /* File uploader styling */
+    .css-1v0mbdj {  /* File uploader class */
+        border-radius: 10px;
+        border: 2px dashed #1E88E5;
+        padding: 2rem;
+        text-align: center;
+        background: #F8F9FA;
+    }
+    
+    /* Info box styling */
+    .stAlert {
+        border-radius: 10px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 import pandas as pd
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
@@ -258,103 +353,113 @@ class FeedbackAnalyzer:
         return "I'm not sure about that specific aspect of the feedback. Could you rephrase your question or ask about a specific question from the survey?"
 
 def main():
-    st.title("Event Feedback Analyzer 📊")
-    st.write("Upload your Google Forms feedback CSV file and get instant analysis and insights!")
+    # Title with custom styling
+    st.markdown('<h1 class="main-title">✨ Event Feedback Analyzer</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Transform your feedback data into actionable insights with AI-powered analysis</p>', unsafe_allow_html=True)
 
-    # File upload
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+    # File upload with friendly message
+    st.markdown("### 📁 Upload Your Feedback Data")
+    st.markdown("Drop your Google Forms CSV file below to get started!")
+    uploaded_file = st.file_uploader("", type="csv")  # Empty label since we have the markdown above
 
     if uploaded_file is not None:
         try:
-            # Read CSV file
-            df = pd.read_csv(uploaded_file)
-            
-            if df.empty:
-                st.error("The uploaded file is empty. Please upload a valid CSV file with feedback data.")
-                return
+            # Add a spinner for better UX
+            with st.spinner("🔍 Analyzing your feedback data..."):
+                # Read CSV file
+                df = pd.read_csv(uploaded_file)
                 
-            # Create analyzer instance
-            analyzer = FeedbackAnalyzer(df)
-            
-            if not analyzer.analysis_results:
-                st.warning("No analyzable feedback found in the CSV. Make sure your CSV has proper column headers and data.")
-                return
-            
-            # Store analyzer in session state
-            st.session_state['analyzer'] = analyzer
-            
-            # Display analysis results
-            st.subheader("📈 Analysis Results")
-            
-            # Create two columns
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Display results in expandable sections
-                for question, analysis in analyzer.analysis_results.items():
-                    with st.expander(f"📝 {question}"):
-                        st.write(f"Total Responses: {analysis['response_count']}")
-                        
-                        summary = analysis['summary']
-                        if 'text_summary' in summary:
-                            st.write("Summary:")
-                            st.write(summary['text_summary'])
+                if df.empty:
+                    st.error("📭 The uploaded file appears to be empty. Please check your CSV file and try again.")
+                    return
+                    
+                # Create analyzer instance
+                analyzer = FeedbackAnalyzer(df)
+                
+                if not analyzer.analysis_results:
+                    st.warning("⚠️ No analyzable feedback found. Please ensure your CSV has proper column headers and data.")
+                    return
+                
+                # Store analyzer in session state
+                st.session_state['analyzer'] = analyzer
+                
+                # Success message
+                st.success("✅ Analysis complete! Explore your insights below.")
+                
+                # Display analysis results
+                st.markdown("### 📊 Analysis Results")
+                
+                # Create two columns with better ratio
+                col1, col2 = st.columns([3, 2])
+                
+                with col1:
+                    # Display results in expandable sections
+                    for question, analysis in analyzer.analysis_results.items():
+                        with st.expander(f"📝 {question}"):
+                            st.markdown(f"**Total Responses:** {analysis['response_count']}")
                             
-                            st.write("Common Themes:")
-                            if summary['common_themes']:
-                                themes_html = " ".join([
-                                    f'<span style="background-color: #e9ecef; padding: 4px 8px; margin: 2px; border-radius: 4px;">{theme["word"]} ({theme["count"]})</span>'
-                                    for theme in summary['common_themes']
-                                ])
-                                st.markdown(themes_html, unsafe_allow_html=True)
+                            summary = analysis['summary']
+                            if 'text_summary' in summary:
+                                st.markdown("#### Key Insights")
+                                st.write(summary['text_summary'])
+                                
+                                st.markdown("#### Common Themes")
+                                if summary['common_themes']:
+                                    themes_html = " ".join([
+                                        f'<span class="theme-tag">{theme["word"]} ({theme["count"]})</span>'
+                                        for theme in summary['common_themes']
+                                    ])
+                                    st.markdown(themes_html, unsafe_allow_html=True)
+                                else:
+                                    st.info("No common themes identified in the responses.")
+                            
+                            elif 'mean' in summary:
+                                try:
+                                    st.markdown("#### Statistical Overview")
+                                    cols = st.columns(4)
+                                    cols[0].metric("📊 Mean", f"{summary['mean']:.2f}")
+                                    cols[1].metric("📈 Median", f"{summary['median']:.2f}")
+                                    cols[2].metric("⬇️ Min", summary['min'])
+                                    cols[3].metric("⬆️ Max", summary['max'])
+                                except Exception:
+                                    st.error("Could not display statistical information.")
+                            
                             else:
-                                st.write("No common themes identified.")
-                        
-                        elif 'mean' in summary:
-                            try:
-                                col1, col2, col3, col4 = st.columns(4)
-                                col1.metric("Mean", f"{summary['mean']:.2f}")
-                                col2.metric("Median", f"{summary['median']:.2f}")
-                                col3.metric("Min", summary['min'])
-                                col4.metric("Max", summary['max'])
-                            except Exception:
-                                st.write(f"Mean: {summary.get('mean', 'N/A')}")
-                                st.write(f"Median: {summary.get('median', 'N/A')}")
-                                st.write(f"Min: {summary.get('min', 'N/A')}")
-                                st.write(f"Max: {summary.get('max', 'N/A')}")
-                        
-                        else:
-                            try:
-                                st.write(f"Most Common Response: {summary['most_common']}")
-                                st.write("Distribution:")
-                                for key, value in summary['distribution'].items():
-                                    st.write(f"- {key}: {value} responses")
-                            except Exception:
-                                st.write("Could not display distribution information.")
-            
-            with col2:
-                st.subheader("💬 Ask Questions")
-                st.write("Ask me anything about the feedback!")
+                                try:
+                                    st.markdown("#### Response Distribution")
+                                    st.markdown(f"**Most Common:** {summary['most_common']}")
+                                    for key, value in summary['distribution'].items():
+                                        st.markdown(f"• {key}: {value} responses")
+                                except Exception:
+                                    st.error("Could not display distribution information.")
                 
-                # Example questions
-                st.markdown("""
-                Try asking:
-                - What are the main themes in the feedback?
-                - How many responses did we get?
-                - What did people say about [specific topic]?
-                - Give me a summary of all feedback.
-                """)
-                
-                # Chat input
-                question = st.text_input("Your question:")
-                if st.button("Ask") and question:
-                    response = analyzer.answer_question(question)
-                    st.write("Answer:")
-                    st.info(response)
+                with col2:
+                    st.markdown("### 💬 Chat with Your Data")
+                    st.markdown("Ask questions about your feedback and get instant insights!")
+                    
+                    # Example questions with better formatting
+                    st.markdown("""
+                    #### Try asking:
+                    • 🔍 What are the main themes in the feedback?
+                    • 📊 How many responses did we get?
+                    • 💡 What did people say about [specific topic]?
+                    • 📝 Give me a summary of all feedback.
+                    """)
+                    
+                    # Chat input with friendly prompt
+                    question = st.text_input("What would you like to know? 🤔")
+                    if st.button("Get Insights 🔍") and question:
+                        with st.spinner("Analyzing your question..."):
+                            response = analyzer.answer_question(question)
+                            st.markdown("#### Here's what I found:")
+                            st.info(response)
 
         except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-            st.error("Please make sure your CSV file is properly formatted with headers and data.")
+            st.error(f"🚨 Oops! Something went wrong: {str(e)}")
+            st.markdown("Please check if your CSV file is properly formatted with headers and data.")
+    else:
+        # Show friendly welcome message when no file is uploaded
+        st.info("👋 Welcome! Upload your feedback CSV file to get started. Need help? Check out the example questions on the right!")
 
 if __name__ == "__main__":
     main() 
