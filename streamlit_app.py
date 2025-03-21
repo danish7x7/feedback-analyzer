@@ -357,10 +357,15 @@ def main():
     st.markdown('<h1 class="main-title">✨ Event Feedback Analyzer</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitle">Transform your feedback data into actionable insights with AI-powered analysis</p>', unsafe_allow_html=True)
 
-    # File upload with friendly message
+    # File upload with friendly message and proper accessibility
     st.markdown("### 📁 Upload Your Feedback Data")
     st.markdown("Drop your Google Forms CSV file below to get started!")
-    uploaded_file = st.file_uploader("", type="csv")  # Empty label since we have the markdown above
+    uploaded_file = st.file_uploader(
+        label="Upload CSV file",
+        type="csv",
+        help="Upload a CSV file exported from Google Forms",
+        label_visibility="collapsed"  # Hide the label but keep it accessible
+    )
 
     if uploaded_file is not None:
         try:
