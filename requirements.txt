@@ -1,4 +1,6 @@
 streamlit
 pandas
-nltk
 scikit-learn
+sumy
+nltk
+numpy 
