@@ -1,4 +1,14 @@
 import streamlit as st
+import pandas as pd
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from collections import defaultdict
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lex_rank import LexRankSummarizer
+from sumy.nlp.stemmers import Stemmer
+from sumy.utils import get_stop_words
+import numpy as np
 
 # Set page config at the very beginning
 st.set_page_config(
@@ -144,6 +154,78 @@ STOPWORDS = set([
     'won', 'wouldn'
 ])
 
+def summarize_text_responses(text_responses, num_sentences=3, language="english"):
+    """
+    Summarize multiple text responses using LexRank algorithm.
+    
+    Args:
+        text_responses (list): List of text responses to summarize
+        num_sentences (int): Number of sentences to include in summary
+        language (str): Language of the text
+        
+    Returns:
+        dict: Contains summary, key sentences, and themes
+    """
+    if not text_responses:
+        return {
+            "summary": "No text responses available.",
+            "key_sentences": [],
+            "themes": []
+        }
+    
+    # Combine all responses into one text
+    combined_text = " ".join(str(response) for response in text_responses if str(response).strip())
+    
+    try:
+        # Create parser
+        parser = PlaintextParser.from_string(combined_text, Tokenizer(language))
+        
+        # Initialize summarizer
+        stemmer = Stemmer(language)
+        summarizer = LexRankSummarizer(stemmer)
+        summarizer.stop_words = get_stop_words(language)
+        
+        # Generate summary
+        summary_sentences = summarizer(parser.document, num_sentences)
+        summary = " ".join([str(sentence) for sentence in summary_sentences])
+        
+        # Extract themes using TF-IDF
+        vectorizer = TfidfVectorizer(
+            max_features=10,
+            stop_words='english',
+            ngram_range=(1, 2)
+        )
+        
+        # Fit TF-IDF on individual responses
+        tfidf_matrix = vectorizer.fit_transform(text_responses)
+        
+        # Get feature names and their scores
+        feature_names = vectorizer.get_feature_names_out()
+        tfidf_scores = np.array(tfidf_matrix.sum(axis=0)).flatten()
+        
+        # Get top themes
+        top_indices = tfidf_scores.argsort()[-5:][::-1]
+        themes = [
+            {
+                "theme": feature_names[i],
+                "score": float(tfidf_scores[i])
+            }
+            for i in top_indices
+        ]
+        
+        return {
+            "summary": summary,
+            "key_sentences": [str(sentence) for sentence in summary_sentences],
+            "themes": themes
+        }
+    except Exception as e:
+        st.error(f"Error in summarization: {str(e)}")
+        return {
+            "summary": "Could not generate summary due to an error.",
+            "key_sentences": [],
+            "themes": []
+        }
+
 class FeedbackAnalyzer:
     def __init__(self, df):
         self.df = df
@@ -186,49 +268,42 @@ class FeedbackAnalyzer:
 
     def generate_text_summary(self, responses):
         """
-        Generate a summary for text responses
+        Generate a summary for text responses using enhanced analysis
         """
-        # Combine all responses
-        combined_text = ' '.join(responses)
-        
-        # Tokenize sentences safely using our custom function
-        sentences = custom_sentence_tokenize(combined_text)
-        
-        if not sentences:
+        if not responses:
             return {
                 'text_summary': "No text responses available.",
                 'common_themes': [],
-                'total_responses': len(responses)
+                'total_responses': 0,
+                'detailed_summary': None
             }
         
-        # Calculate sentence importance using TF-IDF
-        try:
-            vectorizer = TfidfVectorizer(stop_words='english')
-            tfidf_matrix = vectorizer.fit_transform(sentences)
-            
-            # Get average TF-IDF scores for each sentence
-            importance_scores = tfidf_matrix.sum(axis=1).A1
-            
-            # Get top sentences (most representative)
-            if len(sentences) >= 3:
-                top_sentence_indices = importance_scores.argsort()[-3:][::-1]
-                summary_sentences = [sentences[i] for i in top_sentence_indices]
-            else:
-                summary_sentences = sentences
-            
-            # Create a summary paragraph
-            summary = " ".join(summary_sentences)
-        except Exception:
-            # Fallback to a simple summary if TF-IDF fails
-            summary = ". ".join(sentences[:min(3, len(sentences))])
+        # Get detailed summary using Sumy
+        detailed_summary = summarize_text_responses(responses)
         
-        # Add some basic statistics
-        common_themes = self.extract_common_themes(responses)
+        # Extract common themes using our existing method
+        word_themes = self.extract_common_themes(responses)
+        
+        # Combine both theme extraction methods
+        combined_themes = []
+        
+        # Add word frequency themes
+        combined_themes.extend([
+            {'word': theme['word'], 'count': theme['count'], 'type': 'frequency'}
+            for theme in word_themes
+        ])
+        
+        # Add TF-IDF themes
+        combined_themes.extend([
+            {'word': theme['theme'], 'score': theme['score'], 'type': 'tfidf'}
+            for theme in detailed_summary['themes']
+        ])
         
         return {
-            'text_summary': summary,
-            'common_themes': common_themes,
-            'total_responses': len(responses)
+            'text_summary': detailed_summary['summary'],
+            'common_themes': combined_themes,
+            'total_responses': len(responses),
+            'detailed_summary': detailed_summary
         }
 
     def generate_numerical_summary(self, responses):
@@ -308,11 +383,32 @@ class FeedbackAnalyzer:
 
     def answer_question(self, question):
         """
-        Answer questions about the feedback data
+        Enhanced answer_question method with better summarization capabilities
         """
         if not self.analysis_results:
             return "No feedback data has been analyzed yet."
+        
+        # Handle summarization requests
+        if any(phrase in question.lower() for phrase in ["summarize", "summary of", "key points"]):
+            # Check if the question is about a specific topic/question
+            for question_text, data in self.analysis_results.items():
+                if any(word in question_text.lower() for word in question.lower().split()):
+                    if 'summary' in data['summary'] and data['summary'].get('detailed_summary'):
+                        summary = data['summary']['detailed_summary']
+                        response = f"Here's a summary of '{question_text}':\n\n"
+                        response += f"📝 Key Points:\n{summary['summary']}\n\n"
+                        response += "🔑 Main Themes:\n"
+                        for theme in summary['themes'][:3]:  # Show top 3 themes
+                            response += f"• {theme['theme']}\n"
+                        return response
             
+            # If no specific question found, provide overall summary
+            overall_summary = "Overall Summary of Feedback:\n\n"
+            for question_text, data in self.analysis_results.items():
+                if 'text_summary' in data['summary']:
+                    overall_summary += f"📌 {question_text}:\n{data['summary']['text_summary']}\n\n"
+            return overall_summary
+        
         # Define common question patterns and their handling logic
         if "how many" in question.lower() and "responses" in question.lower():
             try:
@@ -405,16 +501,36 @@ def main():
                             
                             summary = analysis['summary']
                             if 'text_summary' in summary:
-                                st.markdown("#### Key Insights")
+                                st.markdown("#### 📊 Key Insights")
                                 st.write(summary['text_summary'])
                                 
-                                st.markdown("#### Common Themes")
+                                if summary.get('detailed_summary'):
+                                    with st.expander("🔍 Detailed Analysis"):
+                                        st.markdown("##### Key Sentences")
+                                        for sentence in summary['detailed_summary']['key_sentences']:
+                                            st.markdown(f"• {sentence}")
+                                
+                                st.markdown("#### 🎯 Themes & Topics")
                                 if summary['common_themes']:
-                                    themes_html = " ".join([
-                                        f'<span class="theme-tag">{theme["word"]} ({theme["count"]})</span>'
-                                        for theme in summary['common_themes']
-                                    ])
-                                    st.markdown(themes_html, unsafe_allow_html=True)
+                                    # Display frequency-based themes
+                                    freq_themes = [t for t in summary['common_themes'] if t['type'] == 'frequency']
+                                    if freq_themes:
+                                        st.markdown("##### Most Mentioned Words")
+                                        themes_html = " ".join([
+                                            f'<span class="theme-tag">{theme["word"]} ({theme["count"]})</span>'
+                                            for theme in freq_themes
+                                        ])
+                                        st.markdown(themes_html, unsafe_allow_html=True)
+                                    
+                                    # Display TF-IDF themes
+                                    tfidf_themes = [t for t in summary['common_themes'] if t['type'] == 'tfidf']
+                                    if tfidf_themes:
+                                        st.markdown("##### Key Topics")
+                                        themes_html = " ".join([
+                                            f'<span class="theme-tag">{theme["word"]}</span>'
+                                            for theme in tfidf_themes
+                                        ])
+                                        st.markdown(themes_html, unsafe_allow_html=True)
                                 else:
                                     st.info("No common themes identified in the responses.")
                             
