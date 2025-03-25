@@ -9,6 +9,8 @@ from sumy.summarizers.lex_rank import LexRankSummarizer
 from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
 import numpy as np
+import nltk
+import os
 
 # Set page config at the very beginning
 st.set_page_config(
@@ -16,6 +18,32 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
+
+# Download required NLTK data
+@st.cache_resource
+def download_nltk_data():
+    """Download required NLTK data for Sumy"""
+    try:
+        # Create NLTK data directory if it doesn't exist
+        nltk_data_dir = os.path.expanduser('~/nltk_data')
+        if not os.path.exists(nltk_data_dir):
+            os.makedirs(nltk_data_dir)
+        
+        # Download required NLTK data
+        nltk.download('punkt', quiet=True)
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        
+        # Test if the tokenizer works
+        test_text = "This is a test sentence."
+        nltk.sent_tokenize(test_text)
+        return True
+    except Exception as e:
+        st.error(f"Error downloading NLTK data: {str(e)}")
+        return False
+
+# Download NLTK data at startup
+download_nltk_data()
 
 # Custom CSS for better styling
 st.markdown("""
