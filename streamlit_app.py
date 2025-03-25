@@ -201,8 +201,26 @@ def summarize_text_responses(text_responses, num_sentences=3, language="english"
             "themes": []
         }
     
+    # Clean and preprocess responses
+    cleaned_responses = []
+    for response in text_responses:
+        if isinstance(response, str):
+            # Remove special characters but keep basic punctuation
+            cleaned = re.sub(r'[^\w\s.,!?]', ' ', response)
+            # Remove extra whitespace
+            cleaned = ' '.join(cleaned.split())
+            if cleaned.strip():  # Only add non-empty responses
+                cleaned_responses.append(cleaned)
+    
+    if not cleaned_responses:
+        return {
+            "summary": "No valid text responses found after preprocessing.",
+            "key_sentences": [],
+            "themes": []
+        }
+    
     # Combine all responses into one text
-    combined_text = " ".join(str(response) for response in text_responses if str(response).strip())
+    combined_text = " ".join(cleaned_responses)
     
     try:
         # Create parser
@@ -217,29 +235,35 @@ def summarize_text_responses(text_responses, num_sentences=3, language="english"
         summary_sentences = summarizer(parser.document, num_sentences)
         summary = " ".join([str(sentence) for sentence in summary_sentences])
         
-        # Extract themes using TF-IDF
+        # Extract themes using TF-IDF with more lenient settings
         vectorizer = TfidfVectorizer(
             max_features=10,
             stop_words='english',
-            ngram_range=(1, 2)
+            ngram_range=(1, 2),
+            min_df=2,  # Minimum document frequency
+            max_df=0.95  # Maximum document frequency
         )
         
         # Fit TF-IDF on individual responses
-        tfidf_matrix = vectorizer.fit_transform(text_responses)
-        
-        # Get feature names and their scores
-        feature_names = vectorizer.get_feature_names_out()
-        tfidf_scores = np.array(tfidf_matrix.sum(axis=0)).flatten()
-        
-        # Get top themes
-        top_indices = tfidf_scores.argsort()[-5:][::-1]
-        themes = [
-            {
-                "theme": feature_names[i],
-                "score": float(tfidf_scores[i])
-            }
-            for i in top_indices
-        ]
+        try:
+            tfidf_matrix = vectorizer.fit_transform(cleaned_responses)
+            
+            # Get feature names and their scores
+            feature_names = vectorizer.get_feature_names_out()
+            tfidf_scores = np.array(tfidf_matrix.sum(axis=0)).flatten()
+            
+            # Get top themes
+            top_indices = tfidf_scores.argsort()[-5:][::-1]
+            themes = [
+                {
+                    "theme": feature_names[i],
+                    "score": float(tfidf_scores[i])
+                }
+                for i in top_indices
+            ]
+        except ValueError:
+            # If TF-IDF fails, return empty themes
+            themes = []
         
         return {
             "summary": summary,
@@ -394,8 +418,16 @@ class FeedbackAnalyzer:
             summary = data['summary']
             if 'text_summary' in summary:
                 context += f"Summary: {summary['text_summary']}\n"
-                context += "Common themes: " + ", ".join(f"{theme['word']} ({theme['count']} mentions)" 
-                                                       for theme in summary['common_themes']) + "\n"
+                # Safely access theme information
+                themes = []
+                for theme in summary.get('common_themes', []):
+                    if isinstance(theme, dict):
+                        if 'word' in theme and 'count' in theme:
+                            themes.append(f"{theme['word']} ({theme['count']} mentions)")
+                        elif 'theme' in theme:
+                            themes.append(theme['theme'])
+                if themes:
+                    context += "Common themes: " + ", ".join(themes) + "\n"
             elif 'mean' in summary:
                 context += f"Statistical summary:\n"
                 context += f"- Mean: {summary['mean']}\n"
